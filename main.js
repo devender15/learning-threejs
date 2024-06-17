@@ -1,9 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { GLTFLoader } from "three/examples/jsm/Addons.js";
 
-const monkeyUrl = new URL("/models/doggo2.glb", import.meta.url);
-// const monkeyUrl = new URL("/models/man.max", import.meta.url);
+import nebula from "/img/nebula.jpg";
 
 const renderer = new THREE.WebGLRenderer();
 
@@ -20,47 +18,46 @@ const camera = new THREE.PerspectiveCamera(
   1000
 );
 
-renderer.setClearColor(0xa3a3a3);
-
 const orbit = new OrbitControls(camera, renderer.domElement);
 
-camera.position.set(10, 10, 10);
-// orbit.update();
+camera.position.set(0, 0, 12);
+orbit.update();
 
-const grid = new THREE.GridHelper(30, 30);
-scene.add(grid);
-
-const assetLoader = new GLTFLoader();
-
-let mixer;
-
-assetLoader.load(
-  monkeyUrl.href,
-  (gltf) => {
-    const model = gltf.scene;
-    scene.add(model);
-    mixer = new THREE.AnimationMixer(model);
-    const clips = gltf.animations;
-    // const clip = THREE.AnimationClip.findByName(clips, "HeadAction");
-    // const action = mixer.clipAction(clip);
-    // action.play();
-    clips.forEach((clip) => {
-      const action = mixer.clipAction(clip);
-      action.play();
-    });
+const uniforms = {
+  u_time: { type: "f", value: 0.0 },
+  u_resolution: {
+    type: "v2",
+    value: new THREE.Vector2(
+      window.innerWidth,
+      window.innerHeight
+    ).multiplyScalar(window.devicePixelRatio),
   },
-  undefined,
-  (err) => {
-    console.log(err);
-  }
-);
+  u_mouse: { type: "v2", value: new THREE.Vector2(0.0, 0.0) },
+  image: { type: 't', value: new THREE.TextureLoader().load(nebula)}
+};
+
+window.addEventListener("mousemove", (e) => {
+  uniforms.u_mouse.value.set(
+    e.screenX / window.innerWidth,
+    1 - e.screenY / window.innerHeight
+  );
+});
+
+const geometry = new THREE.PlaneGeometry(10, 10, 30, 30);
+const material = new THREE.ShaderMaterial({
+  vertexShader: document.getElementById("vertexShader").textContent,
+  fragmentShader: document.getElementById("fragmentShader").textContent,
+  wireframe: false,
+  uniforms,
+});
+const mesh = new THREE.Mesh(geometry, material);
+
+scene.add(mesh);
 
 const clock = new THREE.Clock();
 
 function animate() {
-  if (mixer) {
-    mixer.update(clock.getDelta());
-  }
+  uniforms.u_time.value = clock.getElapsedTime();
 
   renderer.render(scene, camera);
 }
@@ -69,6 +66,8 @@ renderer.setAnimationLoop(animate);
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
+
   camera.updateProjectionMatrix();
+
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
