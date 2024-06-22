@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-
-import nebula from "/img/nebula.jpg";
+import * as CANNON from "cannon-es";
 
 const renderer = new THREE.WebGLRenderer();
 
@@ -20,44 +19,92 @@ const camera = new THREE.PerspectiveCamera(
 
 const orbit = new OrbitControls(camera, renderer.domElement);
 
-camera.position.set(0, 0, 12);
+camera.position.set(0, 20, -30);
 orbit.update();
 
-const uniforms = {
-  u_time: { type: "f", value: 0.0 },
-  u_resolution: {
-    type: "v2",
-    value: new THREE.Vector2(
-      window.innerWidth,
-      window.innerHeight
-    ).multiplyScalar(window.devicePixelRatio),
-  },
-  u_mouse: { type: "v2", value: new THREE.Vector2(0.0, 0.0) },
-  image: { type: 't', value: new THREE.TextureLoader().load(nebula)}
-};
+const sphereGeo = new THREE.SphereGeometry(2);
+const sphereMat = new THREE.MeshBasicMaterial({
+  color: 0xff0000,
+  wireframe: true,
+});
+const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+scene.add(sphereMesh);
 
-window.addEventListener("mousemove", (e) => {
-  uniforms.u_mouse.value.set(
-    e.screenX / window.innerWidth,
-    1 - e.screenY / window.innerHeight
-  );
+const boxGeo = new THREE.BoxGeometry(2, 2, 2);
+const boxMat = new THREE.MeshBasicMaterial({
+  color: 0x00ff00,
+  wireframe: true,
+});
+const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+scene.add(boxMesh);
+
+const groundGeo = new THREE.PlaneGeometry(30, 30);
+const groundMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  side: THREE.DoubleSide,
+  wireframe: true,
+});
+const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+scene.add(groundMesh);
+
+const world = new CANNON.World({
+  gravity: new CANNON.Vec3(0, -9.81, 0)
 });
 
-const geometry = new THREE.PlaneGeometry(10, 10, 30, 30);
-const material = new THREE.ShaderMaterial({
-  vertexShader: document.getElementById("vertexShader").textContent,
-  fragmentShader: document.getElementById("fragmentShader").textContent,
-  wireframe: false,
-  uniforms,
+const groundPhyMat = new CANNON.Material();
+
+const groundBody = new CANNON.Body({
+  // shape: new CANNON.Plane(),
+  shape: new CANNON.Box(new CANNON.Vec3(15, 15, 0.1)),
+  mass: 10,
+  type: CANNON.Body.STATIC,
+  material: groundPhyMat
 });
-const mesh = new THREE.Mesh(geometry, material);
 
-scene.add(mesh);
+world.addBody(groundBody);
+groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 
-const clock = new THREE.Clock();
+const boxPhyMat = new CANNON.Material();
+
+const boxBody = new CANNON.Body({
+  mass: 1,
+  shape: new CANNON.Box(new CANNON.Vec3(1, 1, 1)),
+  position: new CANNON.Vec3(1, 20, 0),
+  material: boxPhyMat
+})
+world.addBody(boxBody);
+
+boxBody.angularVelocity.set(0, 10, 0);
+boxBody.angularDamping = 0.5;
+
+const groundBoxContactMat = new CANNON.ContactMaterial(groundPhyMat, boxPhyMat, {
+  friction: 0
+});
+
+world.addContactMaterial(groundBoxContactMat);
+
+const sphereBody = new CANNON.Body({
+  mass: 1,
+  shape: new CANNON.Sphere(2),
+  position: new CANNON.Vec3(0, 15, 0)
+})
+world.addBody(sphereBody);
+
+sphereBody.linearDamping = 0.31
+
+const timeStep = 1 / 60;
 
 function animate() {
-  uniforms.u_time.value = clock.getElapsedTime();
+  world.step(timeStep);
+
+  groundMesh.position.copy(groundBody.position);
+  groundMesh.quaternion.copy(groundBody.quaternion);
+
+  boxMesh.position.copy(boxBody.position);
+  boxMesh.quaternion.copy(boxBody.quaternion);
+  
+  sphereMesh.position.copy(sphereBody.position);
+  sphereMesh.quaternion.copy(sphereBody.quaternion);
 
   renderer.render(scene, camera);
 }
