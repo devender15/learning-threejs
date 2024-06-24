@@ -1,8 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import * as CANNON from "cannon-es";
 
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -19,102 +18,52 @@ const camera = new THREE.PerspectiveCamera(
 
 const orbit = new OrbitControls(camera, renderer.domElement);
 
-camera.position.set(0, 20, -30);
+camera.position.set(0, 6, 6);
 orbit.update();
 
-const sphereGeo = new THREE.SphereGeometry(2);
-const sphereMat = new THREE.MeshBasicMaterial({
-  color: 0xff0000,
-  wireframe: true,
+const ambientLight = new THREE.AmbientLight(0x333333);
+scene.add(ambientLight);
+
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+scene.add(directionalLight);
+directionalLight.position.set(0, 50, 0);
+
+const helper = new THREE.AxesHelper(20);
+scene.add(helper);
+
+const mouse = new THREE.Vector2();
+const intersectionPoint = new THREE.Vector3();
+const planeNormal = new THREE.Vector3();
+const plane = new THREE.Plane();
+const raycaster = new THREE.Raycaster();
+
+window.addEventListener("click", function (e) {
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  planeNormal.copy(camera.position).normalize();
+  plane.setFromNormalAndCoplanarPoint(planeNormal, scene.position);
+  raycaster.setFromCamera(mouse, camera);
+  raycaster.ray.intersectPlane(plane, intersectionPoint);
+  const sphereMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.125, 30, 30),
+    new THREE.MeshStandardMaterial({
+      color: 0xffea00,
+      metalness: 0,
+      roughness: 0
+    })
+  );
+  scene.add(sphereMesh);
+  sphereMesh.position.copy(intersectionPoint);
 });
-const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
-scene.add(sphereMesh);
-
-const boxGeo = new THREE.BoxGeometry(2, 2, 2);
-const boxMat = new THREE.MeshBasicMaterial({
-  color: 0x00ff00,
-  wireframe: true,
-});
-const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-scene.add(boxMesh);
-
-const groundGeo = new THREE.PlaneGeometry(30, 30);
-const groundMat = new THREE.MeshBasicMaterial({
-  color: 0xffffff,
-  side: THREE.DoubleSide,
-  wireframe: true,
-});
-const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-scene.add(groundMesh);
-
-const world = new CANNON.World({
-  gravity: new CANNON.Vec3(0, -9.81, 0)
-});
-
-const groundPhyMat = new CANNON.Material();
-
-const groundBody = new CANNON.Body({
-  // shape: new CANNON.Plane(),
-  shape: new CANNON.Box(new CANNON.Vec3(15, 15, 0.1)),
-  mass: 10,
-  type: CANNON.Body.STATIC,
-  material: groundPhyMat
-});
-
-world.addBody(groundBody);
-groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
-
-const boxPhyMat = new CANNON.Material();
-
-const boxBody = new CANNON.Body({
-  mass: 1,
-  shape: new CANNON.Box(new CANNON.Vec3(1, 1, 1)),
-  position: new CANNON.Vec3(1, 20, 0),
-  material: boxPhyMat
-})
-world.addBody(boxBody);
-
-boxBody.angularVelocity.set(0, 10, 0);
-boxBody.angularDamping = 0.5;
-
-const groundBoxContactMat = new CANNON.ContactMaterial(groundPhyMat, boxPhyMat, {
-  friction: 0
-});
-
-world.addContactMaterial(groundBoxContactMat);
-
-const sphereBody = new CANNON.Body({
-  mass: 1,
-  shape: new CANNON.Sphere(2),
-  position: new CANNON.Vec3(0, 15, 0)
-})
-world.addBody(sphereBody);
-
-sphereBody.linearDamping = 0.31
-
-const timeStep = 1 / 60;
 
 function animate() {
-  world.step(timeStep);
-
-  groundMesh.position.copy(groundBody.position);
-  groundMesh.quaternion.copy(groundBody.quaternion);
-
-  boxMesh.position.copy(boxBody.position);
-  boxMesh.quaternion.copy(boxBody.quaternion);
-  
-  sphereMesh.position.copy(sphereBody.position);
-  sphereMesh.quaternion.copy(sphereBody.quaternion);
-
   renderer.render(scene, camera);
 }
 
 renderer.setAnimationLoop(animate);
 
-window.addEventListener("resize", () => {
+window.addEventListener("resize", function () {
   camera.aspect = window.innerWidth / window.innerHeight;
-
   camera.updateProjectionMatrix();
-
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
